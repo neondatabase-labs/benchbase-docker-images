@@ -1,0 +1,76 @@
+name: Build and Push Benchbase Image to GHCR
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            tag: latest-amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            tag: latest-arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clone Benchbase at specific commit
+        run: |
+          git clone --depth 1 https://github.com/cmu-db/benchbase.git
+          cd benchbase
+          git fetch --depth 1 origin 4ac0750aa9ef23be6491df3e008b74010f0c2f70
+          git checkout 4ac0750aa9ef23be6491df3e008b74010f0c2f70
+
+      - name: Prepare Benchbase build context
+        run: |
+          cd benchbase
+          mkdir -p profiles target results
+          sudo chmod -R u+rwX .
+          sudo chmod -R g+rwX .
+          sudo chmod -R o+rwX .
+          # Patch build-in-container.sh to add safe.directory
+          sed -i '/mkdir -p \/profiles/a git config --global --add safe.directory /benchbase' docker/benchbase/devcontainer/build-in-container.sh
+          # Patch build-full-image.sh to use cp -a instead of cp -al
+          sed -i 's/cp -al/cp -a/g' docker/benchbase/build-full-image.sh
+
+      - name: Build Benchbase Dev Container for ${{ matrix.arch }}
+        run: |
+          cd benchbase
+          ./docker/benchbase/build-dev-image.sh
+
+      - name: Build Benchbase Docker Image for ${{ matrix.arch }}
+        run: |
+          cd benchbase
+          export SKIP_TESTS=true
+          export BENCHBASE_PROFILES=postgres
+          export DOCKER_BUILDKIT=1
+          ./docker/benchbase/build-full-image.sh
+          docker tag benchbase-postgres:latest ghcr.io/neondatabase-labs/benchbase-postgres:${{ matrix.tag }}
+
+      - name: Push Benchbase Docker Image for ${{ matrix.arch }}
+        run: |
+          docker push ghcr.io/neondatabase-labs/benchbase-postgres:${{ matrix.tag }}
+
+  
