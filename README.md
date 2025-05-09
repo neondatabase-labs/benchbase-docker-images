@@ -10,3 +10,5 @@ In Neon performance engineering we want to run benchmarks using benchbase and
 - build benchbase docker images for the architectures we use in our platform
 
 This repository is used to build benchbase docker images for the architectures we use in our platform and make them publicly available on ghcr.io so that third parties can reproduce our published benchmark results.
+
+The images are available here: https://github.com/neondatabase-labs/benchbase-docker-images/pkgs/container/benchbase-postgres
