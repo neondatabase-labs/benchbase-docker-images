@@ -23,7 +23,7 @@ jobs:
           - arch: arm64
             platform: linux/arm64
             tag: latest-arm64
-            runner: [self-hosted, small-arm64]
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout Repository
